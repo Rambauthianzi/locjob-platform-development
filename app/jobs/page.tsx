@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { BadgeCheck, BriefcaseBusiness, Clock3, MapPin, Search } from 'lucide-react'
+import { BadgeCheck, BriefcaseBusiness, Clock3, MapPin, Search, Upload } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 const jobs = [
   { title: 'Garden Assistant', company: 'Greenway Gardens', location: 'Cape Town, Western Cape', type: 'Part-time', pay: 'R3,500 – R5,000 / month', category: 'Gardening & maintenance', verified: true },
@@ -16,10 +17,21 @@ export default function JobsPage() {
   const [query, setQuery] = useState('')
   const [location, setLocation] = useState('')
   const [type, setType] = useState('All types')
+  const [jobFile, setJobFile] = useState('')
+  const [jobStatus, setJobStatus] = useState('')
   const filteredJobs = useMemo(() => jobs.filter((job) => {
     const text = `${job.title} ${job.company} ${job.category}`.toLowerCase()
     return (!query || text.includes(query.toLowerCase())) && (!location || job.location.toLowerCase().includes(location.toLowerCase())) && (type === 'All types' || job.type === type)
   }), [location, query, type])
+
+  async function uploadJob(file: File) {
+    setJobFile(file.name)
+    setJobStatus('Uploading job post…')
+    const supabase = createClient()
+    const path = `job-posts/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '-')}`
+    const { error } = await supabase.storage.from('job-posts').upload(path, file, { upsert: false })
+    setJobStatus(error ? 'Job selected, but storage needs the job-posts bucket configured.' : 'Job post uploaded for review.')
+  }
 
   return (
     <main className="min-h-screen bg-[#f7f9fb] text-[#102a43]">
@@ -32,6 +44,7 @@ export default function JobsPage() {
       <section className="border-b border-[#dce6ee] bg-[#eef6f3]">
         <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8"><p className="text-sm font-bold uppercase tracking-[.16em] text-[#20a36a]">Demonstration directory</p><h1 className="mt-2 text-4xl font-bold tracking-tight text-[#0d3b66]">Find work near you.</h1><p className="mt-3 max-w-xl text-[#52677a]">Explore sample opportunities across South Africa. Live Supabase listings can be connected once the database schema is configured.</p><div className="mt-7 grid gap-3 rounded-2xl border border-[#dce6ee] bg-white p-3 shadow-sm md:grid-cols-[1.3fr_1fr_220px]"><label className="flex items-center gap-3 rounded-xl bg-[#f7f9fb] px-3 py-3"><Search className="size-5 text-[#7b90a3]" /><span className="sr-only">Search jobs</span><input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full bg-transparent text-sm outline-none" placeholder="Job title, skill or category" /></label><label className="flex items-center gap-3 rounded-xl bg-[#f7f9fb] px-3 py-3"><MapPin className="size-5 text-[#7b90a3]" /><span className="sr-only">Search location</span><input value={location} onChange={(event) => setLocation(event.target.value)} className="w-full bg-transparent text-sm outline-none" placeholder="City, suburb or province" /></label><label className="flex items-center rounded-xl bg-[#f7f9fb] px-3"><span className="sr-only">Employment type</span><select value={type} onChange={(event) => setType(event.target.value)} className="w-full bg-transparent py-3 text-sm outline-none"><option>All types</option>{[...new Set(jobs.map((job) => job.type))].map((item) => <option key={item}>{item}</option>)}</select></label></div></div>
       </section>
+      <section id="post-a-job" className="mx-auto max-w-7xl px-5 pt-12 lg:px-8"><div className="grid gap-6 rounded-3xl bg-[#0d3b66] p-7 text-white md:grid-cols-[1fr_auto] md:items-center md:p-9"><div><p className="text-sm font-bold uppercase tracking-[.16em] text-[#79d5ad]">For employers</p><h2 className="mt-2 text-2xl font-bold">Have a job to share?</h2><p className="mt-2 max-w-xl text-sm leading-6 text-[#c8d9e6]">Upload a job description and our team can review it before publishing to the local directory.</p></div><label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#20a36a] px-5 py-3 text-sm font-bold text-white hover:bg-[#168057]"><Upload className="size-4" /> Upload a job<input type="file" accept=".pdf,.doc,.docx,.txt" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) uploadJob(file) }} /></label></div>{jobFile && <p className="mt-3 text-sm text-[#52677a]" role="status">{jobFile} · {jobStatus}</p>}</section>
       <section className="mx-auto max-w-7xl px-5 py-12 lg:px-8"><div className="flex items-center justify-between"><h2 className="text-xl font-bold text-[#0d3b66]">{filteredJobs.length} opportunities</h2><span className="text-sm text-[#71879a]">Updated for demonstration</span></div><div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{filteredJobs.map((job) => <article key={job.title} className="rounded-2xl border border-[#dce6ee] bg-white p-5 shadow-sm"><div className="flex items-start justify-between gap-3"><div className="flex size-11 items-center justify-center rounded-xl bg-[#eaf2f8] text-[#0d3b66]"><BriefcaseBusiness className="size-5" /></div>{job.verified && <span className="flex items-center gap-1 rounded-full bg-[#e6f6ef] px-2 py-1 text-xs font-bold text-[#168057]"><BadgeCheck className="size-3.5" /> Verified</span>}</div><h3 className="mt-5 text-lg font-bold text-[#0d3b66]">{job.title}</h3><p className="mt-1 text-sm font-medium text-[#52677a]">{job.company}</p><div className="mt-4 flex flex-col gap-2 text-xs text-[#71879a]"><span className="flex items-center gap-1"><MapPin className="size-3.5" />{job.location}</span><span className="flex items-center gap-1"><Clock3 className="size-3.5" />{job.type}</span></div><div className="mt-5 border-t border-[#edf1f4] pt-4"><p className="text-sm font-bold text-[#0d3b66]">{job.pay}</p><button className="mt-4 w-full rounded-lg border border-[#cde0eb] px-3 py-2 text-xs font-bold text-[#0d3b66] hover:bg-[#f3f8fb]">View details</button></div></article>)}</div>{filteredJobs.length === 0 && <div className="rounded-2xl border border-dashed border-[#b9cbd8] bg-white px-6 py-14 text-center"><h3 className="font-bold text-[#0d3b66]">No opportunities found</h3><p className="mt-2 text-sm text-[#71879a]">Try a different keyword, location, or employment type.</p></div>}</section>
     </main>
   )

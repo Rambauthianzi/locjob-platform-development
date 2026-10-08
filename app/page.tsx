@@ -13,8 +13,10 @@ import {
   ShieldCheck,
   Sparkles,
   Users,
+  Upload,
   X,
 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 const jobs = [
   { title: 'Garden Assistant', company: 'Greenway Gardens', location: 'Cape Town, Western Cape', type: 'Part-time', pay: 'R3,500 – R5,000 / month', posted: '2 days ago', category: 'Gardening & maintenance', verified: true },
@@ -30,6 +32,23 @@ export default function Page() {
   const [query, setQuery] = useState('')
   const [location, setLocation] = useState('')
   const [searched, setSearched] = useState(false)
+  const [cvName, setCvName] = useState('')
+  const [cvStatus, setCvStatus] = useState('')
+  const [profile, setProfile] = useState({ name: '', email: '', skills: '' })
+
+  async function uploadCv(file: File) {
+    setCvName(file.name)
+    setCvStatus('Uploading your CV…')
+    const supabase = createClient()
+    const path = `cv/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '-')}`
+    const { error } = await supabase.storage.from('cv-uploads').upload(path, file, { upsert: false })
+    if (error) {
+      setCvStatus('Your CV is selected, but storage needs the cv-uploads bucket configured.')
+      return
+    }
+    setProfile((current) => ({ ...current, name: file.name.replace(/\\.(pdf|docx?|txt)$/i, '').replace(/[-_]/g, ' ') }))
+    setCvStatus('CV uploaded. Your application profile has been auto-filled.')
+  }
 
   const filteredJobs = useMemo(() => {
     if (!searched) return jobs
@@ -84,6 +103,8 @@ export default function Page() {
       </section>
 
       <section id="opportunities" className="mx-auto max-w-7xl px-5 py-20 lg:px-8"><div className="flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p className="text-sm font-bold uppercase tracking-[.16em] text-[#20a36a]">Explore possibilities</p><h2 className="mt-2 text-3xl font-bold tracking-tight text-[#0d3b66]">Opportunities near you</h2><p className="mt-2 text-[#71879a]">A few places to start building your future.</p></div><a href="/jobs" className="flex items-center gap-2 text-sm font-bold text-[#168057]">View all jobs <ArrowRight className="size-4" /></a></div><div className="mt-8 grid gap-4 md:grid-cols-2">{filteredJobs.map((job) => <article key={job.title} className="rounded-2xl border border-[#dce6ee] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"><div className="flex items-start justify-between gap-4"><div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-[#eaf2f8] text-[#0d3b66]"><BriefcaseBusiness className="size-5" /></div>{job.verified && <span className="flex items-center gap-1 rounded-full bg-[#e6f6ef] px-2.5 py-1 text-xs font-bold text-[#168057]"><BadgeCheck className="size-3.5" /> Verified</span>}</div><h3 className="mt-5 text-lg font-bold text-[#0d3b66]">{job.title}</h3><p className="mt-1 text-sm font-medium text-[#52677a]">{job.company}</p><div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-[#71879a]"><span className="flex items-center gap-1"><MapPin className="size-3.5" />{job.location}</span><span className="flex items-center gap-1"><Clock3 className="size-3.5" />{job.type}</span></div><div className="mt-5 flex items-end justify-between border-t border-[#edf1f4] pt-4"><div><p className="text-sm font-bold text-[#0d3b66]">{job.pay}</p><p className="mt-1 text-xs text-[#8da0ae]">Posted {job.posted}</p></div><button className="rounded-lg border border-[#cde0eb] px-3 py-2 text-xs font-bold text-[#0d3b66] hover:bg-[#f3f8fb]">View details</button></div></article>)}</div>{searched && filteredJobs.length === 0 && <div className="mt-5 rounded-2xl border border-dashed border-[#b9decf] bg-[#eef6f3] p-8 text-center"><p className="font-bold text-[#0d3b66]">No opportunities found yet</p><p className="mt-1 text-sm text-[#71879a]">Try a broader keyword or nearby location.</p></div>}</section>
+
+      <section id="profile" className="border-y border-[#dce6ee] bg-white"><div className="mx-auto grid max-w-7xl gap-8 px-5 py-16 lg:grid-cols-[.85fr_1.15fr] lg:px-8"><div><p className="text-sm font-bold uppercase tracking-[.16em] text-[#20a36a]">Apply faster</p><h2 className="mt-2 text-3xl font-bold tracking-tight text-[#0d3b66]">Upload your CV once.</h2><p className="mt-3 leading-7 text-[#71879a]">We&apos;ll use it to pre-fill your application profile, so you can spend less time typing and more time finding the right opportunity.</p><label className="mt-6 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#b9decf] bg-[#f5fbf8] px-6 py-8 text-center transition hover:border-[#20a36a]"><Upload className="size-7 text-[#20a36a]" /><span className="mt-3 font-bold text-[#0d3b66]">Choose your CV</span><span className="mt-1 text-xs text-[#71879a]">PDF, DOC, DOCX or TXT</span><input type="file" accept=".pdf,.doc,.docx,.txt" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) uploadCv(file) }} /></label>{cvName && <p className="mt-3 text-sm text-[#52677a]">Selected: <span className="font-semibold">{cvName}</span></p>}{cvStatus && <p className="mt-2 text-sm font-semibold text-[#168057]" role="status">{cvStatus}</p>}</div><div className="rounded-2xl border border-[#dce6ee] bg-[#f7f9fb] p-6"><h3 className="text-lg font-bold text-[#0d3b66]">Application profile</h3><p className="mt-1 text-sm text-[#71879a]">These details will be ready when you apply.</p><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-[#52677a]">Full name<input value={profile.name} onChange={(event) => setProfile({ ...profile, name: event.target.value })} className="mt-2 w-full rounded-lg border border-[#cde0eb] bg-white px-3 py-2.5 font-normal outline-none focus:border-[#20a36a]" placeholder="Your name" /></label><label className="text-sm font-semibold text-[#52677a]">Email<input value={profile.email} onChange={(event) => setProfile({ ...profile, email: event.target.value })} className="mt-2 w-full rounded-lg border border-[#cde0eb] bg-white px-3 py-2.5 font-normal outline-none focus:border-[#20a36a]" placeholder="you@example.com" type="email" /></label><label className="text-sm font-semibold text-[#52677a] sm:col-span-2">Skills<input value={profile.skills} onChange={(event) => setProfile({ ...profile, skills: event.target.value })} className="mt-2 w-full rounded-lg border border-[#cde0eb] bg-white px-3 py-2.5 font-normal outline-none focus:border-[#20a36a]" placeholder="e.g. customer service, gardening, admin" /></label></div></div></div></section>
 
       <section id="how-it-works" className="border-y border-[#dce6ee] bg-white"><div className="mx-auto max-w-7xl px-5 py-20 lg:px-8"><div className="max-w-xl"><p className="text-sm font-bold uppercase tracking-[.16em] text-[#20a36a]">Simple by design</p><h2 className="mt-2 text-3xl font-bold tracking-tight text-[#0d3b66]">Your next opportunity is three steps away.</h2></div><div className="mt-10 grid gap-8 md:grid-cols-3">{[{n:'01',title:'Create your profile',body:'Tell us what you can do, where you are, and what kind of work you are looking for.'},{n:'02',title:'Find your match',body:'Browse local opportunities that fit your skills, schedule, and preferred location.'},{n:'03',title:'Take your next step',body:'Apply with confidence and start building real experience in your community.'}].map((step) => <div key={step.n}><span className="text-sm font-bold text-[#20a36a]">{step.n}</span><h3 className="mt-3 text-lg font-bold text-[#0d3b66]">{step.title}</h3><p className="mt-2 leading-7 text-[#71879a]">{step.body}</p></div>)}</div></div></section>
 
