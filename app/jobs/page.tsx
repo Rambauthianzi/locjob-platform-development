@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BadgeCheck, BriefcaseBusiness, Clock3, Heart, MapPin, Search, Upload, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -25,6 +25,12 @@ export default function JobsPage() {
   const [favorites, setFavorites] = useState<string[]>([])
   const [postedJobs, setPostedJobs] = useState<typeof jobs>([])
   const [newJob, setNewJob] = useState({ title: '', company: '', location: '', type: 'Part-time', pay: '', category: '' })
+  const [userId, setUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
+  }, [])
+
   async function uploadJob(file: File) {
     setJobFile(file.name)
     setJobStatus('Uploading job post…')
@@ -34,13 +40,36 @@ export default function JobsPage() {
     setJobStatus(error ? 'Job selected, but storage needs the job-posts bucket configured.' : 'Job post uploaded for review.')
   }
 
-  function addJob(event: React.FormEvent<HTMLFormElement>) {
+  async function addJob(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!newJob.title || !newJob.company || !newJob.location || !newJob.pay) return
-    setPostedJobs((current) => [{ ...newJob, posted: 'just now', verified: false }, ...current] as typeof jobs)
+
+    if (userId) {
+      const supabase = createClient()
+      const amount = Number(newJob.pay.replace(/[^0-9.]/g, '')) || 0
+      const { error } = await supabase.from('jobs').insert({
+        employer_id: userId,
+        title: newJob.title,
+        company: newJob.company,
+        description: `${newJob.title} opportunity at ${newJob.company}.`,
+        location: newJob.location,
+        requirements: '',
+        payment_amount: amount,
+        payment_frequency: 'Per Month',
+        work_type: newJob.type === 'Full-time' ? 'Full-Time' : newJob.type === 'Part-time' ? 'Part-Time' : newJob.type === 'Freelance' ? 'Freelance' : 'Casual/Gig',
+        category: newJob.category,
+      })
+      if (error) {
+        setJobStatus('Please complete an employer profile before publishing this job.')
+        return
+      }
+    } else {
+      setPostedJobs((current) => [{ ...newJob, posted: 'just now', verified: false }, ...current] as typeof jobs)
+    }
+
     setNewJob({ title: '', company: '', location: '', type: 'Part-time', pay: '', category: '' })
     setShowPostForm(false)
-    setJobStatus('Your job post was added to Explore possibilities.')
+    setJobStatus(userId ? 'Your job post is live in Explore possibilities.' : 'Sign in to save this job post permanently.')
   }
 
   const allJobs = [...postedJobs, ...jobs]
