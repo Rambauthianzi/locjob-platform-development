@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   ArrowRight,
   BadgeCheck,
@@ -17,6 +17,7 @@ import {
   Upload,
   X,
 } from 'lucide-react'
+import { useUser } from '@auth0/nextjs-auth0/client'
 import { createClient } from '@/lib/supabase/client'
 
 const jobs = [
@@ -37,11 +38,8 @@ export default function Page() {
   const [cvStatus, setCvStatus] = useState('')
   const [cvUploaded, setCvUploaded] = useState(false)
   const [profile, setProfile] = useState({ name: '', email: '', skills: '' })
-  const [loggedIn, setLoggedIn] = useState(false)
-
-  useEffect(() => { createClient().auth.getUser().then(({ data }) => setLoggedIn(Boolean(data.user))) }, [])
-
-  async function signOut() { await createClient().auth.signOut(); setLoggedIn(false) }
+  const { user } = useUser()
+  const loggedIn = Boolean(user)
 
   async function uploadCv(file: File) {
     setCvName(file.name)
@@ -85,7 +83,7 @@ export default function Page() {
           <nav className="hidden items-center gap-8 text-base font-semibold text-[#52677a] lg:flex" aria-label="Main navigation">
             <a className="text-[#0d3b66] transition hover:text-[#168057]" href="#top">Home</a><a className="transition hover:text-[#168057]" href="#opportunities">Browse jobs</a><a className="transition hover:text-[#168057]" href="#how-it-works">How it works</a><a className="transition hover:text-[#168057]" href="#trust">About us</a>
           </nav>
-          <div className="hidden items-center gap-3 lg:flex"><a href="/dashboard" className="px-3 py-2 text-sm font-semibold text-[#0d3b66]">Dashboard</a>{loggedIn && <a href="/profile" aria-label="Open your profile" title="Profile" className="rounded-lg p-2 text-[#0d3b66] transition hover:bg-[#e6f6ef] hover:text-[#168057]"><CircleUserRound /></a>}{loggedIn ? <button onClick={signOut} className="px-3 py-2 text-sm font-semibold text-[#0d3b66]">Sign out</button> : <><a href="/login" className="px-3 py-2 text-sm font-semibold text-[#0d3b66]">Sign in</a><a href="/signup" className="rounded-lg bg-[#0d3b66] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#082b4b]">Get started</a></>}</div>
+          <div className="hidden items-center gap-3 lg:flex"><a href="/dashboard" className="px-3 py-2 text-sm font-semibold text-[#0d3b66]">Dashboard</a>{loggedIn && <a href="/profile" aria-label="Open your profile" title="Profile" className="rounded-lg p-2 text-[#0d3b66] transition hover:bg-[#e6f6ef] hover:text-[#168057]"><CircleUserRound /></a>}{loggedIn ? <a href="/auth/logout" className="px-3 py-2 text-sm font-semibold text-[#0d3b66]">Sign out</a> : <><a href="/login" className="px-3 py-2 text-sm font-semibold text-[#0d3b66]">Sign in</a><a href="/signup" className="rounded-lg bg-[#0d3b66] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#082b4b]">Get started</a></>}</div>
           <button className="rounded-lg p-2 lg:hidden" onClick={() => setMobileOpen(!mobileOpen)} aria-label={mobileOpen ? 'Close menu' : 'Open menu'}>{mobileOpen ? <X /> : <Menu />}</button>
         </div>
         {mobileOpen && <nav className="flex flex-col gap-4 border-t border-[#dce6ee] px-5 py-5 text-sm font-semibold lg:hidden"><a href="#top" onClick={() => setMobileOpen(false)}>Home</a><a href="#opportunities" onClick={() => setMobileOpen(false)}>Browse jobs</a><a href="#how-it-works" onClick={() => setMobileOpen(false)}>How it works</a><a href="#register" onClick={() => setMobileOpen(false)}>Get started</a></nav>}
