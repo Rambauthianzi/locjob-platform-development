@@ -6,4 +6,8 @@ export const auth0 = new Auth0Client({
   clientSecret: process.env.AUTH0_CLIENT_SECRET!,
   secret: process.env.AUTH0_SECRET!,
   appBaseUrl: process.env.V0_RUNTIME_URL ?? process.env.APP_BASE_URL ?? 'http://localhost:3000',
+  transactionCookie: {
+    sameSite: 'none',
+    secure: true,
+  },
 })
