@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { formControlClass } from '@/lib/form-styles'
 
 const jobs = [
   { title: 'Garden Assistant', company: 'Greenway Gardens', location: 'Cape Town, Western Cape', type: 'Part-time', pay: 'R3,500 – R5,000 / month', posted: '2 days ago', category: 'Gardening & maintenance', verified: true },
@@ -96,8 +97,8 @@ export default function Page() {
             <p className="mt-6 max-w-xl text-lg leading-8 text-[#52677a]">Discover local jobs, part-time work, freelance gigs, and entry-level opportunities near you.</p>
             <form onSubmit={submitSearch} className="mt-9 rounded-2xl border border-[#dce6ee] bg-white p-2 shadow-[0_12px_40px_rgba(13,59,102,.10)]">
               <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
-                <label className="flex items-center gap-3 rounded-xl px-3 py-2.5 focus-within:bg-[#f5f9fb]"><Search className="size-5 shrink-0 text-[#7b90a3]" /><span className="sr-only">Search jobs</span><input value={query} onChange={(e) => setQuery(e.target.value)} className="min-w-0 w-full bg-transparent text-sm outline-none placeholder:text-[#8da0ae]" placeholder="Job title or keyword" /></label>
-                <label className="flex items-center gap-3 rounded-xl px-3 py-2.5 focus-within:bg-[#f5f9fb]"><MapPin className="size-5 shrink-0 text-[#7b90a3]" /><span className="sr-only">Search location</span><input value={location} onChange={(e) => setLocation(e.target.value)} className="min-w-0 w-full bg-transparent text-sm outline-none placeholder:text-[#8da0ae]" placeholder="City, suburb or province" /></label>
+                <label className="flex items-center gap-3 rounded-xl px-3 py-2.5 focus-within:bg-[#f5f9fb]"><Search className="size-5 shrink-0 text-[#7b90a3]" /><span className="sr-only">Search jobs</span><input value={query} onChange={(e) => setQuery(e.target.value)} className={`${formControlClass} mt-0 min-w-0 w-full border-0 bg-white py-0 text-sm focus:ring-0`} placeholder="Job title or keyword" /></label>
+                <label className="flex items-center gap-3 rounded-xl px-3 py-2.5 focus-within:bg-[#f5f9fb]"><MapPin className="size-5 shrink-0 text-[#7b90a3]" /><span className="sr-only">Search location</span><input value={location} onChange={(e) => setLocation(e.target.value)} className={`${formControlClass} mt-0 min-w-0 w-full border-0 bg-white py-0 text-sm focus:ring-0`} placeholder="City, suburb or province" /></label>
                 <button className="rounded-xl bg-[#20a36a] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#168057]" type="submit">Search jobs</button>
               </div>
             </form>
