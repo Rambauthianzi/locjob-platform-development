@@ -1,23 +1,29 @@
-import { type NextRequest, NextResponse } from 'next/server'
-import { auth0 } from '@/lib/auth0'
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
 
 export async function proxy(request: NextRequest) {
-  const authResponse = await auth0.middleware(request)
-  const pathname = request.nextUrl.pathname
+  let response = NextResponse.next({ request })
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: {
+        getAll: () => request.cookies.getAll(),
+        setAll: (cookies) => cookies.forEach(({ name, value, options }) => {
+          response.cookies.set(name, value, options)
+        }),
+      },
+    },
+  )
 
-  if (pathname.startsWith('/auth')) return authResponse
-  if (pathname !== '/dashboard' && !pathname.startsWith('/dashboard/') && pathname !== '/profile' && !pathname.startsWith('/profile/')) {
-    return authResponse
+  const { data: { user } } = await supabase.auth.getUser()
+  const protectedRoute = request.nextUrl.pathname === '/dashboard' || request.nextUrl.pathname === '/profile' || request.nextUrl.pathname.startsWith('/employer')
+  if (protectedRoute && !user) {
+    const loginUrl = new URL('/login', request.url)
+    loginUrl.searchParams.set('next', `${request.nextUrl.pathname}${request.nextUrl.search}`)
+    return NextResponse.redirect(loginUrl)
   }
-
-  const session = await auth0.getSession(request)
-  if (!session) {
-    return NextResponse.redirect(new URL(`/auth/login?returnTo=${encodeURIComponent(pathname)}`, request.url))
-  }
-
-  return authResponse
+  return response
 }
 
-export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
-}
+export const config = { matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'] }

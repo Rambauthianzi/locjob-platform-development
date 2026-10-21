@@ -1,0 +1,2 @@
+import { TrustPage } from '@/components/trust-page'
+export default function TermsPage() { return <TrustPage title="Terms of Use"><p>Use LocJob honestly and provide accurate information. Job seekers should never pay to apply, and employers must describe genuine opportunities.</p><p>LocJob is a platform connecting people and does not guarantee employment. Report suspicious activity through Contact or Help.</p></TrustPage> }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight,
   BadgeCheck,
@@ -17,7 +17,6 @@ import {
   Upload,
   X,
 } from 'lucide-react'
-import { useUser } from '@auth0/nextjs-auth0/client'
 import { createClient } from '@/lib/supabase/client'
 
 const jobs = [
@@ -38,8 +37,8 @@ export default function Page() {
   const [cvStatus, setCvStatus] = useState('')
   const [cvUploaded, setCvUploaded] = useState(false)
   const [profile, setProfile] = useState({ name: '', email: '', skills: '' })
-  const { user } = useUser()
-  const loggedIn = Boolean(user)
+  const [loggedIn, setLoggedIn] = useState(false)
+  useEffect(() => { createClient().auth.getUser().then(({ data }) => setLoggedIn(Boolean(data.user))) }, [])
 
   async function uploadCv(file: File) {
     setCvName(file.name)
