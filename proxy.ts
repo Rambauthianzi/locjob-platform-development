@@ -1,28 +1,23 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { auth0 } from '@/lib/auth0'
 
 export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({ request })
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: (cookiesToSet) => {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          response = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
-        },
-      },
-    },
-  )
+  const authResponse = await auth0.middleware(request)
+  const pathname = request.nextUrl.pathname
 
-  const { data: { user } } = await supabase.auth.getUser()
-  const protectedRoute = request.nextUrl.pathname === '/dashboard' || request.nextUrl.pathname.startsWith('/dashboard/') || request.nextUrl.pathname === '/profile' || request.nextUrl.pathname.startsWith('/profile/')
-  if (protectedRoute && !user) return NextResponse.redirect(new URL('/login', request.url))
-  if (user && (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/signup')) return NextResponse.redirect(new URL('/dashboard', request.url))
-  return response
+  if (pathname.startsWith('/auth')) return authResponse
+  if (pathname !== '/dashboard' && !pathname.startsWith('/dashboard/') && pathname !== '/profile' && !pathname.startsWith('/profile/')) {
+    return authResponse
+  }
+
+  const session = await auth0.getSession(request)
+  if (!session) {
+    return NextResponse.redirect(new URL(`/auth/login?returnTo=${encodeURIComponent(pathname)}`, request.url))
+  }
+
+  return authResponse
 }
 
-export const config = { matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'] }
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+}
