@@ -82,6 +82,17 @@
 }
 
 
+@keyframes fade-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 30% { transform: translateX(-4px); } 70% { transform: translateX(4px); } }
+.animate-fade-up { animation: fade-up 400ms ease-out both; }
+.animate-float { animation: float 24s ease-in-out infinite; }
+.animate-shake { animation: shake 300ms ease-out; }
+.form-stage { position: relative; overflow: hidden; background: #f7f9fb; }
+.form-stage::before { content: ''; position: absolute; inset: -20%; pointer-events: none; opacity: .55; background: radial-gradient(circle at 15% 20%, #20a36a30 0 12%, transparent 34%), radial-gradient(circle at 85% 70%, #0d3b6630 0 14%, transparent 38%); animation: float 26s ease-in-out infinite; }
+.form-card, .form-aside { position: relative; z-index: 1; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; } }
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
