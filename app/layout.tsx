@@ -1,6 +1,4 @@
 import { Analytics } from '@vercel/analytics/next'
-import { Auth0Provider } from '@auth0/nextjs-auth0/client'
-import { auth0 } from '@/lib/auth0'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
@@ -35,17 +33,15 @@ export const viewport: Viewport = {
   ],
 }
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const session = await auth0.getSession()
-
   return (
     <html lang="en">
       <body className="antialiased">
-        <Auth0Provider user={session?.user}>{children}</Auth0Provider>
+        {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
