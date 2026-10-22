@@ -1,9 +1,11 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import { SiteHeader } from '@/components/site-header'
+import { SiteFooter } from '@/components/site-footer'
 
 export const metadata: Metadata = {
-  title: 'LocJob — Local Opportunities. Real Experience.',
+  title: { default: 'LocJob — Local Opportunities. Real Experience.', template: '%s | LocJob' },
   description: 'Find local jobs, part-time work, freelance gigs, and entry-level opportunities near you.',
   generator: 'v0.app',
   icons: {
@@ -26,11 +28,8 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'light dark',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f7f9fb' },
-    { media: '(prefers-color-scheme: dark)', color: '#0d3b66' },
-  ],
+  colorScheme: 'light',
+  themeColor: '#0d3b66',
 }
 
 export default function RootLayout({
@@ -41,7 +40,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
+        <SiteHeader />
         {children}
+        <SiteFooter />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
