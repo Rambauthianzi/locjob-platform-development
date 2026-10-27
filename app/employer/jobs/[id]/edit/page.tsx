@@ -1,22 +1,108 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState } from 'react'
 import { FormShell } from '@/components/form-shell'
-import { formControlClass, formLabelClass, formSelectClass } from '@/lib/form-styles'
+import { JobForm } from '@/components/job-form'
+import { emptyJobForm, jobToForm, type JobFormValues, type JobPayload } from '@/lib/job-form'
+import { JOB_COLUMNS, type JobRow } from '@/lib/jobs'
+import { primaryButtonClass } from '@/lib/form-styles'
+import { createClient } from '@/lib/supabase/client'
 
-const workTypes = ['Full-Time', 'Part-Time', 'Contract', 'Temporary', 'Freelance', 'Casual/Gig']
-const frequencies = ['Per Day', 'Per Week', 'Per Month']
-
-type JobForm = { title: string; company: string; description: string; location: string; requirements: string; category: string; pay: string; frequency: string; workType: string }
-const empty: JobForm = { title: '', company: '', description: '', location: '', requirements: '', category: '', pay: '', frequency: 'Per Month', workType: 'Part-Time' }
+type LoadState = 'loading' | 'missing' | 'ready'
 
 export default function EditJobPage() {
-  const { id } = useParams<{ id: string }>(); const router = useRouter(); const [form, setForm] = useState(empty); const [message, setMessage] = useState(''); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false)
-  useEffect(() => { (async () => { const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser(); if (!user) return router.push(`/login?next=/employer/jobs/${id}/edit`); const { data } = await supabase.from('jobs').select('title,company,description,location,requirements,category,payment_amount,payment_frequency,work_type').eq('id', id).eq('employer_id', user.id).maybeSingle(); if (!data) setMessage('We could not find that job in your employer account.'); else setForm({ title: data.title, company: data.company, description: data.description, location: data.location, requirements: data.requirements ?? '', category: data.category ?? '', pay: String(data.payment_amount), frequency: data.payment_frequency, workType: data.work_type }); setLoading(false) })() }, [id, router])
-  function update(key: keyof JobForm, value: string) { setForm((current) => ({ ...current, [key]: value })) }
-  async function submit(event: FormEvent) { event.preventDefault(); setSaving(true); setMessage(''); const values = { title: form.title.trim(), company: form.company.trim(), description: form.description.trim(), location: form.location.trim(), requirements: form.requirements.trim(), category: form.category.trim(), payment_amount: Number(form.pay), payment_frequency: form.frequency, work_type: form.workType }; if (!values.title || !values.company || !values.description || !values.location || !Number.isFinite(values.payment_amount) || values.payment_amount < 1 || values.payment_amount > 1000000) { setMessage('Please complete the required fields and use a pay amount between R1 and R1,000,000.'); setSaving(false); return } const { error } = await createClient().from('jobs').update(values).eq('id', id); if (error) setMessage(error.message); else router.push('/employer/dashboard'); setSaving(false) }
-  if (loading) return <main className="min-h-dvh bg-[#f7f9fb] p-6"><div className="mx-auto max-w-2xl animate-pulse rounded-3xl bg-white p-8"><div className="h-8 w-48 rounded bg-[#eef2f5]" /></div></main>
-  return <FormShell title="Edit job"><form onSubmit={submit} className="mt-7 grid gap-4"><div className="grid gap-4 sm:grid-cols-2">{([['title','Job title'],['company','Company'],['location','Location'],['category','Category']] as const).map(([key, label]) => <label key={key} className={formLabelClass}>{label}<input required={key !== 'category'} maxLength={key === 'title' || key === 'company' ? 100 : 100} value={form[key]} onChange={(e) => update(key, e.target.value)} className={formControlClass} /></label>)}</div><label className={formLabelClass}>Description<textarea required maxLength={3000} value={form.description} onChange={(e) => update('description', e.target.value)} className={`${formControlClass} min-h-36`} /></label><label className={formLabelClass}>Requirements<textarea maxLength={3000} value={form.requirements} onChange={(e) => update('requirements', e.target.value)} className={`${formControlClass} min-h-28`} /></label><div className="grid gap-4 sm:grid-cols-3"><label className={formLabelClass}>Pay amount<input required type="number" min="1" max="1000000" value={form.pay} onChange={(e) => update('pay', e.target.value)} className={formControlClass} /></label><label className={formLabelClass}>Payment frequency<select value={form.frequency} onChange={(e) => update('frequency', e.target.value)} className={formSelectClass}>{frequencies.map((value) => <option key={value}>{value}</option>)}</select></label><label className={formLabelClass}>Work type<select value={form.workType} onChange={(e) => update('workType', e.target.value)} className={formSelectClass}>{workTypes.map((value) => <option key={value}>{value}</option>)}</select></label></div>{message && <p role="alert" className="text-sm font-semibold text-red-600">{message}</p>}<button disabled={saving} className="min-h-11 rounded-xl bg-[#20a36a] px-5 py-3 font-bold text-white disabled:opacity-60">{saving ? 'Saving…' : 'Save changes'}</button></form></FormShell>
+  const { id } = useParams<{ id: string }>()
+  const router = useRouter()
+  const [state, setState] = useState<LoadState>('loading')
+  const [initial, setInitial] = useState<JobFormValues>(emptyJobForm)
+
+  useEffect(() => {
+    let active = true
+    async function load() {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        router.replace(`/login?next=/employer/jobs/${id}/edit`)
+        return
+      }
+      // Filtering on employer_id means other people's jobs simply come back empty.
+      const { data } = await supabase
+        .from('jobs')
+        .select(JOB_COLUMNS)
+        .eq('id', id)
+        .eq('employer_id', user.id)
+        .maybeSingle()
+      if (!active) return
+      if (!data) {
+        setState('missing')
+        return
+      }
+      setInitial(jobToForm(data as unknown as JobRow))
+      setState('ready')
+    }
+    load()
+    return () => {
+      active = false
+    }
+  }, [id, router])
+
+  async function save(payload: JobPayload) {
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      router.replace(`/login?next=/employer/jobs/${id}/edit`)
+      return null
+    }
+
+    // employer_id is never sent, so ownership cannot be changed from the form.
+    const { data, error } = await supabase
+      .from('jobs')
+      .update(payload)
+      .eq('id', id)
+      .eq('employer_id', user.id)
+      .select('id')
+    if (error) return error.message
+    if (!data?.length) return 'We could not update this job. It may have been removed.'
+
+    router.push('/employer/dashboard?notice=updated')
+    router.refresh()
+    return null
+  }
+
+  if (state === 'loading') {
+    return (
+      <FormShell title="Edit job">
+        <div className="mt-6 grid animate-pulse gap-4" aria-busy="true">
+          <div className="h-12 rounded-xl bg-[#eef2f5]" />
+          <div className="h-12 rounded-xl bg-[#eef2f5]" />
+          <div className="h-32 rounded-xl bg-[#eef2f5]" />
+        </div>
+      </FormShell>
+    )
+  }
+
+  if (state === 'missing') {
+    return (
+      <FormShell title="Job not found">
+        <p className="mt-4 text-[#52677a]">
+          We could not find that job in your employer account. It may have been removed.
+        </p>
+        <Link href="/employer/dashboard" className={`${primaryButtonClass} mt-6`}>
+          Back to your jobs
+        </Link>
+      </FormShell>
+    )
+  }
+
+  return (
+    <FormShell title="Edit job">
+      <JobForm initial={initial} submitLabel="Save changes" busyLabel="Saving…" onSubmit={save} />
+    </FormShell>
+  )
 }

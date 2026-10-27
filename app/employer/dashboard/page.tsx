@@ -1,19 +1,75 @@
-'use client'
+import { redirect } from 'next/navigation'
+import { EmployerJobs, type ApplicantProfile, type EmployerJob } from '@/components/employer-jobs'
+import { one } from '@/lib/relations'
+import { createClient } from '@/lib/supabase/server'
+import type { ApplicationStatus } from '@/lib/types'
 
-import Link from 'next/link'
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import type { JobRow } from '@/lib/jobs'
-import { statusClasses, statusLabels, type ApplicationStatus } from '@/lib/types'
+type RawApplication = {
+  id: string
+  status: ApplicationStatus
+  cover_note: string
+  created_at: string
+  profiles: ApplicantProfile | ApplicantProfile[] | null
+}
 
-type Application = { id: string; job_id: string; status: ApplicationStatus; cover_note: string; profiles: { full_name: string; phone: string | null; location: string | null; bio: string | null; skills: string; cv_path: string | null } | null }
+type RawJob = Omit<EmployerJob, 'applications'> & { applications: RawApplication[] | null }
 
-export default function EmployerDashboard() {
-  const [jobs, setJobs] = useState<JobRow[]>([]); const [applications, setApplications] = useState<Record<string, Application[]>>({}); const [message, setMessage] = useState(''); const [loading, setLoading] = useState(true)
-  useEffect(() => { (async () => { const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser(); if (!user) return; const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle(); if (profile?.role !== 'employer') { window.location.assign('/dashboard'); return } const { data } = await supabase.from('jobs').select('id,employer_id,title,company,description,location,requirements,payment_amount,payment_frequency,work_type,category,status,created_at').eq('employer_id', user.id).order('created_at', { ascending: false }); const rows = (data ?? []) as JobRow[]; setJobs(rows); const ids = rows.map((job) => job.id); if (ids.length) { const { data: apps } = await supabase.from('applications').select('id,job_id,status,cover_note,profiles(full_name,phone,location,bio,skills,cv_path)').in('job_id', ids); const grouped: Record<string, Application[]> = {}; ids.forEach((id) => { grouped[id] = [] }); (apps ?? []).forEach((app) => grouped[app.job_id]?.push(app as unknown as Application)); setApplications(grouped) } setLoading(false) })() }, [])
-  async function toggle(job: JobRow) { const next = job.status === 'published' ? 'closed' : 'published'; const { error } = await createClient().from('jobs').update({ status: next }).eq('id', job.id); if (error) setMessage(error.message); else setJobs((items) => items.map((item) => item.id === job.id ? { ...item, status: next } : item)) }
-  async function updateStatus(applicationId: string, status: ApplicationStatus) { const { error } = await createClient().from('applications').update({ status }).eq('id', applicationId); if (error) return setMessage(error.message); setApplications((current) => Object.fromEntries(Object.entries(current).map(([jobId, items]) => [jobId, items.map((item) => item.id === applicationId ? { ...item, status } : item)]))) }
-  async function viewCv(path: string) { const { data, error } = await createClient().storage.from('cv-uploads').createSignedUrl(path, 60); if (error) setMessage(error.message); else if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener,noreferrer') }
-  if (loading) return <main className="min-h-dvh bg-[#f7f9fb] p-5"><div className="mx-auto max-w-6xl animate-pulse py-10"><div className="h-12 w-64 rounded bg-[#e7eef5]" /></div></main>
-  return <main className="page-fade min-h-dvh bg-[#f7f9fb] px-4 py-8 text-[#102a43] sm:px-6 lg:px-8"><div className="mx-auto max-w-6xl"><div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="font-bold text-[#20a36a]">Employer workspace</p><h1 className="mt-2 text-3xl font-bold text-[#0d3b66] sm:text-4xl">Your jobs</h1></div><Link href="/employer/jobs/new" className="inline-flex min-h-11 items-center rounded-xl bg-[#20a36a] px-4 font-bold text-white">Post a job</Link></div>{message && <p role="alert" className="mt-4 text-sm font-semibold text-red-600">{message}</p>}<div className="mt-8 grid gap-5">{jobs.map((job) => <article key={job.id} className="rounded-2xl border border-[#dce6ee] bg-white p-5 sm:p-6"><div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="text-xl font-bold text-[#0d3b66]">{job.title}</h2><p className="mt-1 text-[#71879a]">{job.company} · {job.location}</p><p className="mt-2 text-sm text-[#52677a]">{applications[job.id]?.length ?? 0} application{applications[job.id]?.length === 1 ? '' : 's'}</p></div><div className="flex flex-wrap gap-3"><Link href={`/employer/jobs/${job.id}/edit`} className="min-h-11 content-center font-bold text-[#168057]">Edit</Link><Link href={`/jobs/${job.id}`} className="min-h-11 content-center font-bold text-[#168057]">View job</Link><button onClick={() => toggle(job)} className="min-h-11 rounded-full bg-[#eef6f3] px-3 text-sm font-bold text-[#168057]">{job.status === 'published' ? 'Open — close job' : 'Closed — reopen job'}</button></div></div><div className="mt-6 border-t border-[#edf1f4] pt-5"><h3 className="font-bold text-[#0d3b66]">Applications</h3><div className="mt-3 grid gap-3">{applications[job.id]?.map((application) => <div key={application.id} className="rounded-xl bg-[#f7f9fb] p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p className="font-bold text-[#0d3b66]">{application.profiles?.full_name || 'Applicant'}</p><p className="text-sm text-[#52677a]">{application.profiles?.phone || 'No phone'} · {application.profiles?.location || 'No location'}</p></div><span className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-bold ${statusClasses[application.status]}`}>{statusLabels[application.status]}</span></div><p className="mt-3 text-sm text-[#71879a]">{application.profiles?.bio}</p><p className="mt-2 text-sm text-[#52677a]"><strong>Skills:</strong> {application.profiles?.skills}</p><p className="mt-2 text-sm text-[#52677a]"><strong>Cover note:</strong> {application.cover_note}</p><div className="mt-3 flex flex-wrap items-center gap-3"><label className="sr-only" htmlFor={`status-${application.id}`}>Application status</label><select id={`status-${application.id}`} value={application.status} onChange={(e) => updateStatus(application.id, e.target.value as ApplicationStatus)} className="min-h-11 rounded-xl border border-[#c9d6e2] bg-white px-3 text-base text-[#102a43]">{(['submitted', 'reviewing', 'accepted', 'rejected'] as ApplicationStatus[]).map((value) => <option key={value} value={value}>{statusLabels[value]}</option>)}</select>{application.profiles?.cv_path && <button onClick={() => viewCv(application.profiles!.cv_path!)} className="min-h-11 font-bold text-[#168057]">View CV</button>}</div></div>)}</div></div></article>)}</div></div></main>
+// One query returns every job with its applications and each applicant's profile.
+const JOBS_WITH_APPLICATIONS = `
+  id, title, company, location, status, created_at,
+  applications ( id, status, cover_note, created_at,
+    profiles ( full_name, phone, location, bio, skills, cv_path ) )
+`
+
+export default async function EmployerDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ notice?: string }>
+}) {
+  const { notice } = await searchParams
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login?next=/employer/dashboard')
+
+  // Both reads run at the same time instead of one after the other.
+  const [profileResult, jobsResult] = await Promise.all([
+    supabase.from('profiles').select('role').eq('id', user.id).maybeSingle(),
+    supabase
+      .from('jobs')
+      .select(JOBS_WITH_APPLICATIONS)
+      .eq('employer_id', user.id)
+      .order('created_at', { ascending: false })
+      .order('created_at', { referencedTable: 'applications', ascending: false }),
+  ])
+
+  if (profileResult.data?.role !== 'employer') redirect('/dashboard')
+
+  const jobs: EmployerJob[] = ((jobsResult.data ?? []) as unknown as RawJob[]).map((job) => ({
+    id: job.id,
+    title: job.title,
+    company: job.company,
+    location: job.location,
+    status: job.status,
+    created_at: job.created_at,
+    applications: (job.applications ?? []).map((application) => ({
+      id: application.id,
+      status: application.status,
+      cover_note: application.cover_note,
+      created_at: application.created_at,
+      profile: one(application.profiles),
+    })),
+  }))
+
+  return (
+    <main className="page-fade min-h-dvh bg-[#f7f9fb] px-4 py-8 text-[#102a43] sm:px-6 lg:px-8">
+      {jobsResult.error && (
+        <p role="alert" className="mx-auto mb-5 max-w-6xl rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-700">
+          We could not load all of your jobs. Please refresh the page.
+        </p>
+      )}
+      <EmployerJobs initialJobs={jobs} notice={notice} />
+    </main>
+  )
 }
