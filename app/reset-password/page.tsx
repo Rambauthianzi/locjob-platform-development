@@ -1,7 +1,124 @@
 'use client'
+
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { FormEvent, useEffect, useState } from 'react'
+import { FormShell } from '@/components/form-shell'
 import { createClient } from '@/lib/supabase/client'
-import { formControlClass, formLabelClass } from '@/lib/form-styles'
-export default function ResetPasswordPage(){const router=useRouter();const [session,setSession]=useState<boolean|null>(null);const [password,setPassword]=useState('');const [confirm,setConfirm]=useState('');const [show,setShow]=useState(false);const [message,setMessage]=useState('');useEffect(()=>{createClient().auth.getSession().then(({data})=>setSession(Boolean(data.session)))},[]);async function submit(e:React.FormEvent){e.preventDefault();if(password!==confirm)return setMessage('Passwords do not match.');const {error}=await createClient().auth.updateUser({password});if(error)return setMessage(error.message);const {data:{user}}=await createClient().auth.getUser();const {data:p}=await createClient().from('profiles').select('role').eq('id',user?.id??'').maybeSingle();router.push(p?.role==='employer'?'/employer/dashboard':'/dashboard')}if(session===null)return <main className="min-h-screen bg-[#f7f9fb] p-8">Loading…</main>;return <main className="min-h-screen bg-[#f7f9fb] px-5 py-12"><div className="mx-auto max-w-md rounded-3xl bg-white p-7"><h1 className="text-3xl font-bold text-[#0d3b66]">Set a new password</h1>{!session?<p className="mt-5 text-[#52677a]">This reset link is missing or expired. <Link href="/forgot-password" className="font-semibold text-[#168057]">Request a new one.</Link></p>:<form onSubmit={submit} className="mt-7"><label className={formLabelClass}>New password<div className="flex gap-2"><input required minLength={8} type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} className={formControlClass}/><button type="button" onClick={()=>setShow(!show)} aria-label={show?'Hide password':'Show password'} className="rounded-xl border px-3">{show?'Hide':'Show'}</button></div></label><label className={`${formLabelClass} mt-4`}>Confirm password<input required type={show?'text':'password'} value={confirm} onChange={e=>setConfirm(e.target.value)} className={formControlClass}/></label>{message&&<p className="mt-4 text-sm text-red-700">{message}</p>}<button className="mt-5 rounded-xl bg-[#20a36a] px-5 py-3 font-bold text-white">Update password</button></form>}</div></main>}
+import {
+  formControlClass,
+  formLabelClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+} from '@/lib/form-styles'
+
+export default function ResetPasswordPage() {
+  const router = useRouter()
+  const [hasSession, setHasSession] = useState<boolean | null>(null)
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [show, setShow] = useState(false)
+  const [message, setMessage] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    createClient()
+      .auth.getSession()
+      .then(({ data }) => setHasSession(Boolean(data.session)))
+  }, [])
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    setMessage('')
+    if (password.length < 8) return setMessage('Use at least 8 characters.')
+    if (password !== confirm) return setMessage('Passwords do not match.')
+
+    setLoading(true)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.updateUser({ password })
+      if (error) return setMessage(error.message)
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user?.id ?? '')
+        .maybeSingle()
+
+      router.push(profile?.role === 'employer' ? '/employer/dashboard' : '/dashboard')
+      router.refresh()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (hasSession === null) {
+    return (
+      <FormShell title="Set a new password">
+        <p className="mt-6 text-[#52677a]">Loading…</p>
+      </FormShell>
+    )
+  }
+
+  if (!hasSession) {
+    return (
+      <FormShell title="Set a new password">
+        <p className="mt-6 text-[#52677a]">This reset link is missing or has expired.</p>
+        <Link href="/forgot-password" className={`${primaryButtonClass} mt-5`}>
+          Request a new link
+        </Link>
+      </FormShell>
+    )
+  }
+
+  return (
+    <FormShell title="Set a new password">
+      <form onSubmit={submit} className="stagger mt-6 grid gap-5">
+        <label className={formLabelClass}>
+          New password
+          <div className="flex gap-2">
+            <input
+              required
+              minLength={8}
+              autoComplete="new-password"
+              type={show ? 'text' : 'password'}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className={formControlClass}
+            />
+            <button
+              type="button"
+              onClick={() => setShow(!show)}
+              aria-label={show ? 'Hide password' : 'Show password'}
+              className={`${secondaryButtonClass} mt-1.5 px-4`}
+            >
+              {show ? 'Hide' : 'Show'}
+            </button>
+          </div>
+        </label>
+        <label className={formLabelClass}>
+          Confirm password
+          <input
+            required
+            autoComplete="new-password"
+            type={show ? 'text' : 'password'}
+            value={confirm}
+            onChange={(event) => setConfirm(event.target.value)}
+            className={formControlClass}
+          />
+        </label>
+        {message && (
+          <p key={message} role="alert" className="animate-shake text-sm font-semibold text-red-700">
+            {message}
+          </p>
+        )}
+        <button disabled={loading} className={primaryButtonClass}>
+          {loading ? 'Saving…' : 'Update password'}
+        </button>
+      </form>
+    </FormShell>
+  )
+}
