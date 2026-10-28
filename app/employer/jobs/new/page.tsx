@@ -1,20 +1,79 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState } from 'react'
 import { FormShell } from '@/components/form-shell'
-import { formControlClass, formLabelClass, formSelectClass } from '@/lib/form-styles'
-
-const types = ['Full-Time', 'Part-Time', 'Contract', 'Temporary', 'Freelance', 'Casual/Gig']; const frequencies = ['Per Day', 'Per Week', 'Per Month']
-type Form = { title: string; company: string; location: string; description: string; requirements: string; category: string; pay: string; frequency: string; type: string }
-const initial: Form = { title: '', company: '', location: '', description: '', requirements: '', category: '', pay: '', frequency: 'Per Month', type: 'Part-Time' }
+import { JobForm } from '@/components/job-form'
+import { emptyJobForm, type JobPayload } from '@/lib/job-form'
+import { createClient } from '@/lib/supabase/client'
 
 export default function NewJobPage() {
-  const router = useRouter(); const [form, setForm] = useState(initial); const [errors, setErrors] = useState<Record<string, string>>({}); const [message, setMessage] = useState(''); const [saving, setSaving] = useState(false)
-  useEffect(() => { (async () => { const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser(); if (!user) { router.push('/login?next=/employer/jobs/new'); return } const { data } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle(); if (data?.role !== 'employer') router.push('/dashboard?message=employer-only') })() }, [router])
-  function update(key: keyof Form, value: string) { setForm((current) => ({ ...current, [key]: value })); setErrors((current) => ({ ...current, [key]: '' })) }
-  function validate() { const next: Record<string, string> = {}; const values = { ...form, title: form.title.trim(), company: form.company.trim(), location: form.location.trim(), description: form.description.trim(), requirements: form.requirements.trim(), category: form.category.trim() }; if (!values.title) next.title = 'Job title is required.'; else if (values.title.length > 100) next.title = 'Use 100 characters or fewer.'; if (!values.company) next.company = 'Company is required.'; else if (values.company.length > 100) next.company = 'Use 100 characters or fewer.'; if (!values.location) next.location = 'Location is required.'; else if (values.location.length > 100) next.location = 'Use 100 characters or fewer.'; if (!values.description) next.description = 'Description is required.'; else if (values.description.length > 3000) next.description = 'Use 3,000 characters or fewer.'; const pay = Number(values.pay); if (!Number.isFinite(pay) || pay < 1 || pay > 1000000) next.pay = 'Enter an amount between R1 and R1,000,000.'; setForm(values); setErrors(next); return { values, valid: !Object.keys(next).length, pay } }
-  async function submit(event: FormEvent) { event.preventDefault(); const result = validate(); if (!result.valid) return; setSaving(true); setMessage(''); const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser(); if (!user) { router.push('/login?next=/employer/jobs/new'); return } const { error } = await supabase.from('jobs').insert({ employer_id: user.id, title: result.values.title, company: result.values.company, location: result.values.location, description: result.values.description, requirements: result.values.requirements, category: result.values.category, payment_amount: result.pay, payment_frequency: form.frequency, work_type: form.type, status: 'published' }); if (error) setMessage(error.message); else router.push('/employer/dashboard?success=posted'); setSaving(false) }
-  return <FormShell title="Post a job"><form onSubmit={submit} className="mt-7 grid gap-4"><div className="grid gap-4 sm:grid-cols-2">{([['title', 'Job title', 100], ['company', 'Company', 100], ['location', 'Location', 100], ['category', 'Category', 100]] as const).map(([key, label, max]) => <label key={key} className={formLabelClass}>{label}<input maxLength={max} required={key !== 'category'} value={form[key]} onChange={(e) => update(key, e.target.value)} className={formControlClass} />{errors[key] && <span className="mt-1 block text-sm font-normal text-red-600">{errors[key]}</span>}</label>)}</div><label className={formLabelClass}>Description<textarea required maxLength={3000} value={form.description} onChange={(e) => update('description', e.target.value)} className={`${formControlClass} min-h-36`} />{errors.description && <span className="mt-1 block text-sm font-normal text-red-600">{errors.description}</span>}</label><label className={formLabelClass}>Requirements<span className="ml-1 font-normal text-[#71879a]">(optional)</span><textarea maxLength={3000} value={form.requirements} onChange={(e) => update('requirements', e.target.value)} className={`${formControlClass} min-h-28`} /></label><div className="grid gap-4 sm:grid-cols-3"><label className={formLabelClass}>Pay amount<input required type="number" min="1" max="1000000" value={form.pay} onChange={(e) => update('pay', e.target.value)} className={formControlClass} />{errors.pay && <span className="mt-1 block text-sm font-normal text-red-600">{errors.pay}</span>}</label><label className={formLabelClass}>Payment frequency<select value={form.frequency} onChange={(e) => update('frequency', e.target.value)} className={formSelectClass}>{frequencies.map((value) => <option key={value}>{value}</option>)}</select></label><label className={formLabelClass}>Work type<select value={form.type} onChange={(e) => update('type', e.target.value)} className={formSelectClass}>{types.map((value) => <option key={value}>{value}</option>)}</select></label></div>{message && <p role="alert" className="text-sm font-semibold text-red-600">{message}</p>}<button disabled={saving} className="min-h-11 rounded-xl bg-[#20a36a] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 disabled:opacity-60">{saving ? 'Publishing…' : 'Publish job'}</button></form></FormShell>
+  const router = useRouter()
+  const [ready, setReady] = useState(false)
+
+  // Only signed-in employers may post. Everyone else is sent somewhere sensible.
+  useEffect(() => {
+    let active = true
+    async function check() {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        router.replace('/login?next=/employer/jobs/new')
+        return
+      }
+      const { data } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+      if (!active) return
+      if (data?.role !== 'employer') {
+        router.replace('/dashboard?notice=employer-only')
+        return
+      }
+      setReady(true)
+    }
+    check()
+    return () => {
+      active = false
+    }
+  }, [router])
+
+  async function save(payload: JobPayload) {
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      router.replace('/login?next=/employer/jobs/new')
+      return null
+    }
+
+    const { error } = await supabase
+      .from('jobs')
+      .insert({ ...payload, employer_id: user.id, status: 'published' })
+    if (error) {
+      return error.code === '42501' ? 'Only employer accounts can post jobs.' : error.message
+    }
+
+    router.push('/employer/dashboard?notice=posted')
+    router.refresh()
+    return null
+  }
+
+  if (!ready) {
+    return (
+      <FormShell title="Post a job">
+        <div className="mt-6 grid animate-pulse gap-4" aria-busy="true">
+          <div className="h-12 rounded-xl bg-[#eef2f5]" />
+          <div className="h-12 rounded-xl bg-[#eef2f5]" />
+          <div className="h-32 rounded-xl bg-[#eef2f5]" />
+        </div>
+      </FormShell>
+    )
+  }
+
+  return (
+    <FormShell title="Post a job">
+      <JobForm initial={emptyJobForm} submitLabel="Publish job" busyLabel="Publishing…" onSubmit={save} />
+    </FormShell>
+  )
 }
